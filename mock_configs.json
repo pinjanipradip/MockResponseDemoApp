@@ -1,0 +1,139 @@
+{
+  "sdk_packages": {
+    "vd_basic_9F3A7K2M": {
+      "package": "Basic",
+      "is_active": true,
+      "features": {
+        "m3u8_playback": true,
+        "multiple_resolution": true,
+        "multiple_audio": false,
+        "subtitle_support": true,
+        "playback_speed": true,
+        "chromecast_support": true,
+        "key_moments": false,
+        "thumbnail_preview_support": true,
+        "PIP_support": true,
+        "screen_recording_prevention": true,
+        "full_screen_support": true,
+        "gestures_support": true,
+        "drm_protection": false,
+        "signal_strength": false,
+        "ad_support": false,
+        "title": "Alex Full Show Demo",
+        "videoUrl": "https://d3queh3es1i8u.cloudfront.net/videos/ALEXPFULLSHOW/AlexpFullShowencryptedHD20.m3u8",
+        "castVideoUrl": "https://d3queh3es1i8u.cloudfront.net/videos/ALEXPFULLSHOW/AlexpFullShowencryptedHD20.m3u8",
+        "thumbnailUrl": "https://peach.blender.org/wp-content/uploads/title_anouncement.jpg",
+        "externalSubtitleUrl": "https://example.com/subtitles/en.vtt",
+        "apiKey": "demo_api_key",
+        "startPositionMs": 0,
+        "defaultOrientation": "LANDSCAPE",
+        "auto_play_support": true,
+        "enable_screen_on": true,
+        "controls_auto_hide_durations_sec": 5,
+        "forward_rewind_time_sec": 10,
+        "update_watch_duration_sec": 30,
+        "preferredSubtitleLanguage": "en",
+        "preferredAudioLanguage": "en",
+        "subtitleStyle": {
+          "textColor": "#FFFFFF",
+          "backgroundColor": "#80000000",
+          "fontSizeSp": 16,
+          "isBold": false
+        }
+      },
+      "limits": {
+        "streaming_minutes": 500
+      }
+    },
+    "vd_pro_L8Q2Z5XR": {
+      "package": "Pro",
+      "is_active": true,
+      "features": {
+      "m3u8_playback": true,
+        "multiple_resolution": true,
+        "multiple_audio": false,
+        "subtitle_support": true,
+        "playback_speed": true,
+        "chromecast_support": true,
+        "key_moments": false,
+        "thumbnail_preview_support": true,
+        "PIP_support": true,
+        "screen_recording_prevention": true,
+        "full_screen_support": true,
+        "gestures_support": true,
+        "drm_protection": false,
+        "signal_strength": false,
+        "ad_support": false,
+        "title": "Big Buck Bunny",
+        "videoUrl": "http://sample.vodobox.com/planete_interdite/planete_interdite_alternate.m3u8",
+        "castVideoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+        "thumbnailUrl": "https://peach.blender.org/wp-content/uploads/title_anouncement.jpg",
+        "externalSubtitleUrl": "https://d3queh3es1i8u.cloudfront.net/videos/ALEXPTAMMOTHERMAL/subtitle_ta.vtt",
+        "apiKey": "demo_api_key",
+        "startPositionMs": 0,
+        "defaultOrientation": "LANDSCAPE",
+        "auto_play_support": true,
+        "enable_screen_on": true,
+        "controls_auto_hide_durations_sec": 5,
+        "forward_rewind_time_sec": 10,
+        "update_watch_duration_sec": 30,
+        "preferredSubtitleLanguage": "en",
+        "preferredAudioLanguage": "en",
+        "subtitleStyle": {
+          "textColor": "#FFFFFF",
+          "backgroundColor": "#80000000",
+          "fontSizeSp": 16,
+          "isBold": false
+        }
+      },
+      "limits": {
+        "streaming_minutes": 5000
+      }
+    },
+    "vd_enterprise_X7N4P9QB": {
+      "package": "Enterprise",
+      "is_active": true,
+      "features": {
+        "m3u8_playback": true,
+        "multiple_resolution": true,
+        "multiple_audio": false,
+        "subtitle_support": true,
+        "playback_speed": true,
+        "chromecast_support": true,
+        "key_moments": false,
+        "thumbnail_preview_support": true,
+        "PIP_support": true,
+        "screen_recording_prevention": true,
+        "full_screen_support": true,
+        "gestures_support": true,
+        "drm_protection": false,
+        "signal_strength": false,
+        "ad_support": false,
+        "title": "Big Buck Bunny",
+        "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+        "castVideoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+        "thumbnailUrl": "https://peach.blender.org/wp-content/uploads/title_anouncement.jpg",
+        "externalSubtitleUrl": "https://example.com/subtitles/en.vtt",
+        "apiKey": "demo_api_key",
+        "startPositionMs": 0,
+        "defaultOrientation": "LANDSCAPE",
+        "auto_play_support": true,
+        "enable_screen_on": true,
+        "controls_auto_hide_durations_sec": 5,
+        "forward_rewind_time_sec": 10,
+        "update_watch_duration_sec": 30,
+        "preferredSubtitleLanguage": "en",
+        "preferredAudioLanguage": "en",
+        "subtitleStyle": {
+          "textColor": "#FFFFFF",
+          "backgroundColor": "#80000000",
+          "fontSizeSp": 16,
+          "isBold": false
+        }
+      },
+      "limits": {
+        "streaming_minutes": 50000
+      }
+    }
+  }
+}
