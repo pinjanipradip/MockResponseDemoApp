@@ -1,6 +1,6 @@
 {
   "success":true,
-  "message":"Tenant app is authorized"
+  "message":"Tenant app is authorized",
   "key": "vd_basic_9F3A7K2M",
   "is_authorized": true
 }
