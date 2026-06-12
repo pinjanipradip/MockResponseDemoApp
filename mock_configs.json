@@ -30,7 +30,7 @@
         "auto_play_support": true,
         "enable_screen_on": true,
         "controls_auto_hide_durations_sec": 5,
-        "forward_rewind_time_sec": 10,
+        "forward_rewind_time_sec": 5,
         "update_watch_duration_sec": 30,
         "preferredSubtitleLanguage": "en",
         "preferredAudioLanguage": "en",
