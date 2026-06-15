@@ -9,7 +9,7 @@
         "multiple_audio": true,
         "subtitle_support": true,
         "playback_speed": true,
-        "chromecast_support": false,
+        "chromecast_support": true,
         "key_moments": true,
         "thumbnail_preview_support": true,
         "PIP_support": true,
