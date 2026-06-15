@@ -5,6 +5,29 @@
       "is_active": true,
       "features": {
         "m3u8_playback": true,
+        "subtitle_support": true,
+        "playback_speed": true,
+        "airplay": false,
+        "chromecast": false,
+        "picture_in_picture": false,
+        "multiple_resolution": false,
+        "multiple_audio": false,
+        "key_moments": false,
+        "drm_protection": false,
+        "screen_recording_prevention": false,
+        "signal_strength": false,
+        "ad_support": false
+      },
+      "limits": {
+        "streaming_minutes": 500
+      }
+    },
+ 
+    "vd_basic_9F3A7K2M_all": {
+      "package": "Basic",
+      "is_active": true,
+      "features": {
+        "m3u8_playback": true,
         "multiple_resolution": true,
         "multiple_audio": true,
         "subtitle_support": true,
@@ -135,5 +158,6 @@
         "streaming_minutes": 50000
       }
     }
+    
   }
 }
