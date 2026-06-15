@@ -8,15 +8,15 @@
         "subtitle_support": true,
         "playback_speed": true,
         "airplay": false,
-        "chromecast": false,
+        "chromecast": true,
         "picture_in_picture": false,
-        "multiple_resolution": false,
-        "multiple_audio": false,
-        "key_moments": false,
+        "multiple_resolution": true,
+        "multiple_audio": true,
+        "key_moments": true,
         "drm_protection": false,
         "screen_recording_prevention": false,
-        "signal_strength": false,
-        "ad_support": false
+        "signal_strength": true,
+        "ad_support": true
       },
       "limits": {
         "streaming_minutes": 500
