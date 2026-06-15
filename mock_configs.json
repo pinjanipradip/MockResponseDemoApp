@@ -1,6 +1,6 @@
 {
   "sdk_packages": {
-    "vd_basic_9F3A7K2M": {
+    "vd_basic_9F3A7K2M_123": {
       "package": "Basic",
       "is_active": true,
       "features": {
@@ -23,7 +23,7 @@
       }
     },
  
-    "vd_basic_9F3A7K2M_all": {
+    "vd_basic_9F3A7K2M": {
       "package": "Basic",
       "is_active": true,
       "features": {
