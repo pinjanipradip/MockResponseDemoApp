@@ -5,18 +5,18 @@
       "is_active": true,
       "features": {
         "m3u8_playback": true,
-        "subtitle_support": false,
-        "playback_speed": false,
-        "airplay": false,
+        "subtitle_support": true,
+        "playback_speed": true,
+        "airplay": true,
         "chromecast": true,
-        "picture_in_picture": false,
-        "multiple_resolution": false,
-        "multiple_audio": false,
-        "key_moments": false,
+        "picture_in_picture": true,
+        "multiple_resolution": true,
+        "multiple_audio": true,
+        "key_moments": true,
         "drm_protection": false,
         "screen_recording_prevention": false,
-        "signal_strength": false,
-        "ad_support": false
+        "signal_strength": true,
+        "ad_support": true
       },
       "limits": {
         "streaming_minutes": 500
