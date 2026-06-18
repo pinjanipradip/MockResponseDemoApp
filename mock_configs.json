@@ -1,6 +1,6 @@
 {
   "sdk_packages": {
-    "vd_basic_9F3A7K2M_1": {
+    "vd_basic_9F3A7K2M": {
       "package": "Basic",
       "is_active": true,
       "features": {
@@ -23,7 +23,7 @@
       }
     },
  
-    "vd_basic_9F3A7K2M": {
+    "vd_basic_9F3A7K2M_123": {
       "package": "Basic",
       "is_active": true,
       "features": {
@@ -50,7 +50,7 @@
         "apiKey": "demo_api_key",
         "startPositionMs": 0,
         "defaultOrientation": "LANDSCAPE",
-        
+        "auto_play_support": true,
         "enable_screen_on": true,
         "controls_auto_hide_durations_sec": 5,
         "forward_rewind_time_sec": 10,
