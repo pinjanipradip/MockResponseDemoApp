@@ -17,6 +17,7 @@
         "screen_recording_prevention": false,
         "signal_strength": true,
         "ad_support": true,
+        "auto_play_support": true
       },
       "limits": {
         "streaming_minutes": 500
