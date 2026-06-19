@@ -17,7 +17,8 @@
         "screen_recording_prevention": false,
         "signal_strength": true,
         "ad_support": true,
-        "auto_play_support": true
+        "auto_play_support": true,
+        "thumbnailUrl": "https://peach.blender.org/wp-content/uploads/title_anouncement.jpg"
       },
       "limits": {
         "streaming_minutes": 500
