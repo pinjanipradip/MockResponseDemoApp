@@ -42,7 +42,8 @@ concurrency:
 jobs:
   # ============================================
   # JOB 0: CHECK IF VERSION WAS BUMPED
-  # Checks all 3 version parameters for changes
+  # Checks if ANY version parameter value actually changed
+  # Ignores blank lines, comments, and whitespace changes
   # ============================================
   check_version_bump:
     runs-on: ubuntu-latest
@@ -61,20 +62,37 @@ jobs:
           fetch-depth: 2  # Need previous commit to compare
 
       # ============================================
-      # Step 2: Check if any version parameter was changed
+      # Step 2: Check if any version parameter value actually changed
       # ============================================
       - name: Check version bump
         id: check
         run: |
-          echo "🔍 Checking if any version parameter was changed in this commit..."
+          echo "🔍 Checking if any version parameter value was actually changed..."
+          
+          # ============================================
+          # Helper function to extract version value from gradle.properties
+          # Ignores comments and blank lines
+          # ============================================
+          extract_version_value() {
+            local param_name="$1"
+            local file_path="$2"
+          
+            if [ -f "$file_path" ]; then
+              # Extract the value, ignore comments and blank lines
+              grep "^${param_name}=" "$file_path" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '[:space:]' || echo ""
+            else
+              echo ""
+            fi
+          }
           
           # ============================================
           # Get CURRENT values from gradle.properties (HEAD)
           # ============================================
           if [ -f "gradle.properties" ]; then
-            CURRENT_VERSION=$(grep "videoplayerTvSdk.version" gradle.properties | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
-            CURRENT_ALPHA=$(grep "videoplayerTvSdk.alphaVersion" gradle.properties | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
-            CURRENT_CHANNEL=$(grep "videoplayerTvSdk.releaseChannel" gradle.properties | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
+            # Extract only the value, ignoring comments and blank lines
+            CURRENT_VERSION=$(extract_version_value "videoplayerTvSdk.version" "gradle.properties")
+            CURRENT_ALPHA=$(extract_version_value "videoplayerTvSdk.alphaVersion" "gradle.properties")
+            CURRENT_CHANNEL=$(extract_version_value "videoplayerTvSdk.releaseChannel" "gradle.properties")
           else
             CURRENT_VERSION=""
             CURRENT_ALPHA=""
@@ -91,10 +109,12 @@ jobs:
           if git rev-parse HEAD~1 > /dev/null 2>&1; then
             # Get the previous version from parent commit
             PREVIOUS_CONTENT=$(git show HEAD~1:gradle.properties 2>/dev/null || echo "")
+          
             if [ -n "$PREVIOUS_CONTENT" ]; then
-              PREVIOUS_VERSION=$(echo "$PREVIOUS_CONTENT" | grep "videoplayerTvSdk.version" | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
-              PREVIOUS_ALPHA=$(echo "$PREVIOUS_CONTENT" | grep "videoplayerTvSdk.alphaVersion" | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
-              PREVIOUS_CHANNEL=$(echo "$PREVIOUS_CONTENT" | grep "videoplayerTvSdk.releaseChannel" | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
+              # Extract values from the previous content
+              PREVIOUS_VERSION=$(echo "$PREVIOUS_CONTENT" | grep "^videoplayerTvSdk.version=" | head -1 | cut -d'=' -f2- | tr -d '[:space:]' || echo "")
+              PREVIOUS_ALPHA=$(echo "$PREVIOUS_CONTENT" | grep "^videoplayerTvSdk.alphaVersion=" | head -1 | cut -d'=' -f2- | tr -d '[:space:]' || echo "")
+              PREVIOUS_CHANNEL=$(echo "$PREVIOUS_CONTENT" | grep "^videoplayerTvSdk.releaseChannel=" | head -1 | cut -d'=' -f2- | tr -d '[:space:]' || echo "")
             fi
           fi
           
@@ -130,51 +150,51 @@ jobs:
           # ============================================
           # Display all values for debugging
           # ============================================
-          echo "📌 Previous version: $PREVIOUS_VERSION"
-          echo "📌 Previous alpha: $PREVIOUS_ALPHA"
-          echo "📌 Previous channel: $PREVIOUS_CHANNEL"
+          echo "📌 Previous version: '$PREVIOUS_VERSION'"
+          echo "📌 Previous alpha: '$PREVIOUS_ALPHA'"
+          echo "📌 Previous channel: '$PREVIOUS_CHANNEL'"
           echo ""
-          echo "📌 Current version: $CURRENT_VERSION"
-          echo "📌 Current alpha: $CURRENT_ALPHA"
-          echo "📌 Current channel: $CURRENT_CHANNEL"
+          echo "📌 Current version: '$CURRENT_VERSION'"
+          echo "📌 Current alpha: '$CURRENT_ALPHA'"
+          echo "📌 Current channel: '$CURRENT_CHANNEL'"
           
           # ============================================
-          # Check if ANY version parameter changed
+          # Check if ANY version parameter value actually changed
           # ============================================
           VERSION_BUMPED="false"
           SHOULD_RUN="false"
           
-          # Check all three parameters
+          # Check all three parameters (comparing actual values)
           if [[ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]]; then
-            echo "✅ Production version changed: $PREVIOUS_VERSION → $CURRENT_VERSION"
+            echo "✅ Production version value changed: '$PREVIOUS_VERSION' → '$CURRENT_VERSION'"
             VERSION_BUMPED="true"
           fi
           
           if [[ "$CURRENT_ALPHA" != "$PREVIOUS_ALPHA" ]]; then
-            echo "✅ Alpha version changed: $PREVIOUS_ALPHA → $CURRENT_ALPHA"
+            echo "✅ Alpha version value changed: '$PREVIOUS_ALPHA' → '$CURRENT_ALPHA'"
             VERSION_BUMPED="true"
           fi
           
           if [[ "$CURRENT_CHANNEL" != "$PREVIOUS_CHANNEL" ]]; then
-            echo "✅ Release channel changed: $PREVIOUS_CHANNEL → $CURRENT_CHANNEL"
+            echo "✅ Release channel value changed: '$PREVIOUS_CHANNEL' → '$CURRENT_CHANNEL'"
             VERSION_BUMPED="true"
           fi
           
           # ============================================
-          # Decide whether to run the pipeline
+          # If none of the values changed, skip the pipeline
           # ============================================
           if [[ "$VERSION_BUMPED" == "true" ]]; then
-            echo "✅ Version parameter changed - running pipeline"
+            echo "✅ Version parameter value changed - running pipeline"
             SHOULD_RUN="true"
           else
-            echo "ℹ️  No version parameter changed in this commit"
+            echo "ℹ️  No version parameter value changed (only comments/blank lines may have changed)"
           
             # Still run if it's a tag push or manual trigger
             if [[ "${{ github.event_name }}" == "workflow_dispatch" ]] || [[ "${{ github.ref }}" == refs/tags/v* ]]; then
               SHOULD_RUN="true"
               echo "✅ Manual or tag trigger - running pipeline"
             else
-              echo "⏭️  Skipping pipeline - no version parameter changed"
+              echo "⏭️  Skipping pipeline - no version parameter value changed"
               SHOULD_RUN="false"
             fi
           fi
@@ -188,6 +208,7 @@ jobs:
           echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
           
           echo "✅ Version bump check complete: should_run=$SHOULD_RUN"
+
   # ============================================
   # JOB 1: VALIDATE AND PREPARE (Resolve version)
   # ============================================
