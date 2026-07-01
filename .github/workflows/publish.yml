@@ -1,0 +1,617 @@
+name: Publish Video Player TV SDK
+
+on:
+  # ============================================
+  # MANUAL TRIGGER FOR TESTING
+  # ============================================
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 1.2.3 or 1.2.3-alpha.1)'
+        required: false
+        placeholder: 'Leave empty for auto-increment'
+      release_type:
+        description: 'Release type'
+        required: true
+        default: alpha
+        type: choice
+        options:
+          - alpha
+          - beta
+          - production
+
+  # ============================================
+  # AUTO-TRIGGER: VERSION BUMP COMMIT TO DEVELOP
+  # Detects when version is manually bumped in gradle.properties
+  # ============================================
+  push:
+    branches:
+      - develop
+    paths:
+      - 'gradle.properties'  # Only trigger when gradle.properties changes
+    tags:
+      - 'v*'  # Also trigger on tags
+
+# ============================================
+# PREVENT CONCURRENT RUNS ON SAME BRANCH
+# ============================================
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================
+  # JOB 0: CHECK IF VERSION WAS BUMPED
+  # ============================================
+  check_version_bump:
+    runs-on: ubuntu-latest
+    outputs:
+      version_bumped: ${{ steps.check.outputs.version_bumped }}
+      current_version: ${{ steps.check.outputs.current_version }}
+      previous_version: ${{ steps.check.outputs.previous_version }}
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      # ============================================
+      # Step 1: Checkout with history to compare versions
+      # ============================================
+      - name: Checkout with history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need previous commit to compare
+
+      # ============================================
+      # Step 2: Check if version was bumped
+      # ============================================
+      - name: Check version bump
+        id: check
+        run: |
+          echo "🔍 Checking if version was bumped in this commit..."
+          
+          # ============================================
+          # Get current version from gradle.properties (HEAD)
+          # ============================================
+          if [ -f "gradle.properties" ]; then
+            CURRENT_VERSION=$(grep "videoplayerTvSdk.alphaVersion" gradle.properties | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
+            if [ -z "$CURRENT_VERSION" ]; then
+              CURRENT_VERSION=$(grep "videoplayerTvSdk.version" gradle.properties | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
+            fi
+          else
+            CURRENT_VERSION=""
+          fi
+          
+          # ============================================
+          # Get previous version from gradle.properties (parent commit)
+          # ============================================
+          PREVIOUS_VERSION=""
+          if git rev-parse HEAD~1 > /dev/null 2>&1; then
+            # Get the previous version from parent commit
+            PREVIOUS_CONTENT=$(git show HEAD~1:gradle.properties 2>/dev/null || echo "")
+            if [ -n "$PREVIOUS_CONTENT" ]; then
+              PREVIOUS_VERSION=$(echo "$PREVIOUS_CONTENT" | grep "videoplayerTvSdk.alphaVersion" | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
+              if [ -z "$PREVIOUS_VERSION" ]; then
+                PREVIOUS_VERSION=$(echo "$PREVIOUS_CONTENT" | grep "videoplayerTvSdk.version" | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
+              fi
+            fi
+          fi
+          
+          # ============================================
+          # Set defaults if empty
+          # ============================================
+          if [ -z "$CURRENT_VERSION" ]; then
+            CURRENT_VERSION="0.1.0"
+            echo "⚠️  No current version found, using default: $CURRENT_VERSION"
+          fi
+          
+          if [ -z "$PREVIOUS_VERSION" ]; then
+            PREVIOUS_VERSION="0.1.0"
+            echo "⚠️  No previous version found, using default: $PREVIOUS_VERSION"
+          fi
+          
+          echo "📌 Previous version: $PREVIOUS_VERSION"
+          echo "📌 Current version: $CURRENT_VERSION"
+          
+          # ============================================
+          # Check if version changed
+          # ============================================
+          VERSION_BUMPED="false"
+          SHOULD_RUN="false"
+          
+          # Only run if version is different
+          if [[ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]]; then
+            echo "✅ Version was bumped from $PREVIOUS_VERSION to $CURRENT_VERSION"
+            VERSION_BUMPED="true"
+            SHOULD_RUN="true"
+          else
+            echo "ℹ️  Version not changed in this commit"
+          
+            # Still run if it's a tag push or manual trigger
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" ]] || [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+              SHOULD_RUN="true"
+              echo "✅ Manual or tag trigger - running pipeline"
+            else
+              echo "⏭️  Skipping pipeline - no version bump"
+              SHOULD_RUN="false"
+            fi
+          fi
+          
+          # ============================================
+          # Output for other jobs
+          # ============================================
+          echo "version_bumped=$VERSION_BUMPED" >> $GITHUB_OUTPUT
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "previous_version=$PREVIOUS_VERSION" >> $GITHUB_OUTPUT
+          echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
+          
+          echo "✅ Version bump check complete: should_run=$SHOULD_RUN"
+
+  # ============================================
+  # JOB 1: VALIDATE AND PREPARE (Resolve version)
+  # ============================================
+  validate:
+    runs-on: ubuntu-latest
+    needs: check_version_bump
+    if: |
+      needs.check_version_bump.outputs.should_run == 'true' ||
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/')
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      version_type: ${{ steps.version.outputs.version_type }}
+      is_production: ${{ steps.version.outputs.is_production }}
+      current_version: ${{ steps.version.outputs.current_version }}
+      release_channel: ${{ steps.version.outputs.release_channel }}
+
+    steps:
+      # ============================================
+      # Step 1: Checkout code
+      # ============================================
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper version detection
+
+      # ============================================
+      # Step 2: Determine Version and Type
+      # ============================================
+      - name: Determine Version
+        id: version
+        run: |
+          # Initialize variables
+          VERSION=""
+          VERSION_TYPE=""
+          IS_PRODUCTION="false"
+          RELEASE_CHANNEL=""
+          
+          # ============================================
+          # Step 2a: Read current versions from gradle.properties
+          # ============================================
+          if [ -f "gradle.properties" ]; then
+            # Read production version
+            PRODUCTION_VERSION=$(grep "videoplayerTvSdk.version" gradle.properties | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
+          
+            # Read alpha version
+            ALPHA_VERSION=$(grep "videoplayerTvSdk.alphaVersion" gradle.properties | cut -d'=' -f2 | tr -d '[:space:]' || echo "")
+          
+            # Read release channel
+            RELEASE_CHANNEL=$(grep "videoplayerTvSdk.releaseChannel" gradle.properties | cut -d'=' -f2 | tr -d '[:space:]' || echo "alpha")
+          else
+            PRODUCTION_VERSION=""
+            ALPHA_VERSION=""
+            RELEASE_CHANNEL="alpha"
+          fi
+          
+          # Set defaults if empty
+          if [ -z "$PRODUCTION_VERSION" ]; then
+            PRODUCTION_VERSION="0.1.0"
+            echo "⚠️  No production version found, using default: $PRODUCTION_VERSION"
+          fi
+          
+          if [ -z "$ALPHA_VERSION" ]; then
+            ALPHA_VERSION="0.1.0-alpha.1"
+            echo "⚠️  No alpha version found, using default: $ALPHA_VERSION"
+          fi
+          
+          echo "📌 Production version: $PRODUCTION_VERSION"
+          echo "📌 Alpha version: $ALPHA_VERSION"
+          echo "📌 Release channel: $RELEASE_CHANNEL"
+          
+          # ============================================
+          # Step 2b: Determine which version to use based on context
+          # ============================================
+          
+          # Priority 1: Manual workflow_dispatch input
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            VERSION_TYPE="${{ github.event.inputs.release_type }}"
+            echo "📌 Using manual version: $VERSION (type: $VERSION_TYPE)"
+          
+          # Priority 2: Manual workflow without version (use current alpha)
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="$ALPHA_VERSION"
+            VERSION_TYPE="alpha"
+            RELEASE_CHANNEL="alpha"
+            echo "📌 Using current alpha version: $VERSION"
+          
+          # Priority 3: Git tag (v1.2.3 or v1.2.3-alpha.1)
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            echo "📌 Using tag version: $VERSION"
+          
+            # Determine type from tag
+            if [[ "$VERSION" == *"-alpha"* ]]; then
+              VERSION_TYPE="alpha"
+            elif [[ "$VERSION" == *"-beta"* ]]; then
+              VERSION_TYPE="beta"
+            else
+              VERSION_TYPE="production"
+            fi
+          
+          # Priority 4: Version bump commit (use version from gradle.properties)
+          elif [[ "${{ needs.check_version_bump.outputs.version_bumped }}" == "true" ]]; then
+            VERSION="${{ needs.check_version_bump.outputs.current_version }}"
+            if [[ "$VERSION" == *"-alpha"* ]]; then
+              VERSION_TYPE="alpha"
+            elif [[ "$VERSION" == *"-beta"* ]]; then
+              VERSION_TYPE="beta"
+            else
+              VERSION_TYPE="production"
+            fi
+            echo "📌 Using bumped version: $VERSION (type: $VERSION_TYPE)"
+          
+          # Priority 5: Push to main (must have tag) - production
+          elif [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            echo "❌ ERROR: Production releases must be triggered by tags (v*)"
+            echo "   To release: git tag v1.2.3 && git push origin v1.2.3"
+            exit 1
+          
+          else
+            echo "❌ ERROR: No valid version source found"
+            echo "   Supported triggers:"
+            echo "   - Manual workflow with version input"
+            echo "   - Manual workflow (current alpha version)"
+            echo "   - Git tag (v*)"
+            echo "   - Version bump commit (gradle.properties changed)"
+            exit 1
+          fi
+          
+          # ============================================
+          # Step 2c: Validate version format (semver)
+          # ============================================
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)\.[0-9]+)?$ ]]; then
+            echo "❌ ERROR: Version '$VERSION' is not valid semver"
+            echo "   Valid formats:"
+            echo "   - 1.2.3 (production)"
+            echo "   - 1.2.3-alpha.1 (alpha)"
+            echo "   - 1.2.3-beta.1 (beta)"
+            exit 1
+          fi
+          
+          # ============================================
+          # Step 2d: Check if version already exists on GitHub Packages
+          # ============================================
+          echo "🔍 Checking if version $VERSION already exists..."
+          PACKAGE_URL="https://maven.pkg.github.com/${{ github.repository }}/com/goboss/videoplayer-tv-sdk/$VERSION/videoplayer-tv-sdk-$VERSION.aar"
+          
+          if curl -s -I "$PACKAGE_URL" | grep -q "200 OK"; then
+            echo "❌ ERROR: Version $VERSION already exists on GitHub Packages!"
+            echo "   Package URL: $PACKAGE_URL"
+            echo "   Please use a different version number."
+            exit 1
+          else
+            echo "✅ Version $VERSION does not exist yet. Proceeding..."
+          fi
+          
+          # ============================================
+          # Step 2e: Set production flag
+          # ============================================
+          if [[ "$VERSION_TYPE" == "production" ]]; then
+            IS_PRODUCTION="true"
+          fi
+          
+          # ============================================
+          # Step 2f: Output for other jobs
+          # ============================================
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_type=$VERSION_TYPE" >> $GITHUB_OUTPUT
+          echo "is_production=$IS_PRODUCTION" >> $GITHUB_OUTPUT
+          echo "current_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "release_channel=$RELEASE_CHANNEL" >> $GITHUB_OUTPUT
+          
+          echo "✅ Version validated: $VERSION ($VERSION_TYPE)"
+          echo "✅ Release channel: $RELEASE_CHANNEL"
+
+  # ============================================
+  # JOB 2: BUILD AND TEST
+  # ============================================
+  build:
+    runs-on: ubuntu-latest
+    needs: [check_version_bump, validate]
+    if: |
+      (success() || failure()) &&
+      (needs.check_version_bump.outputs.should_run == 'true' ||
+       github.event_name == 'workflow_dispatch' ||
+       startsWith(github.ref, 'refs/tags/'))
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # ============================================
+      # Step 1: Checkout
+      # ============================================
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper version detection
+
+      # ============================================
+      # Step 2: Setup Java
+      # ============================================
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      # ============================================
+      # Step 3: Fix Android SDK naming discrepancy
+      # ============================================
+      - name: Link Preinstalled SDK 37.0 to 37
+        run: |
+          cd "$ANDROID_HOME/platforms"
+          if [ -d "android-37.0" ] && [ ! -d "android-37" ]; then
+            ln -s android-37.0 android-37
+            echo "✅ Successfully linked preinstalled android-37.0 to android-37"
+          fi
+
+      # ============================================
+      # Step 4: Restore Gradle Cache
+      # ============================================
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false  # Allow writing to cache
+
+      # ============================================
+      # Step 5: Make gradlew executable
+      # ============================================
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # ============================================
+      # Step 6: Set version in gradle.properties
+      # ============================================
+      - name: Set Version in gradle.properties
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          echo "Setting version: $VERSION"
+          
+          # Update gradle.properties with the new version
+          if [ -f "gradle.properties" ]; then
+            # Use sed to replace the version line
+            sed -i "s/^videoplayerTvSdk.version=.*/videoplayerTvSdk.version=$VERSION/" gradle.properties
+            if [[ "$VERSION" == *"-alpha"* ]]; then
+              sed -i "s/^videoplayerTvSdk.alphaVersion=.*/videoplayerTvSdk.alphaVersion=$VERSION/" gradle.properties
+            fi
+            echo "✅ Updated gradle.properties with version: $VERSION"
+          else
+            echo "videoplayerTvSdk.version=$VERSION" > gradle.properties
+            echo "✅ Created gradle.properties with version: $VERSION"
+          fi
+          
+          # Verify the update
+          echo "📋 gradle.properties content:"
+          cat gradle.properties
+          echo "SDK_PUBLISH_VERSION=$VERSION" >> $GITHUB_ENV
+
+      # ============================================
+      # Step 7: Clean build directory
+      # ============================================
+      - name: Clean build directory
+        run: |
+          chmod +x ./gradlew
+          ./gradlew clean
+
+      # ============================================
+      # Step 8: Run Lint
+      # ============================================
+      - name: Run Lint
+        id: lint
+        continue-on-error: true
+        run: |
+          if ./gradlew tasks --all | grep -q "lint"; then
+            echo "🔍 Running lint checks..."
+            ./gradlew :videoplayer-tv-sdk:lint
+            LINT_EXIT_CODE=$?
+            if [ $LINT_EXIT_CODE -ne 0 ]; then
+              echo "⚠️  Lint found issues but continuing..."
+              echo "lint_status=failed" >> $GITHUB_OUTPUT
+            else
+              echo "✅ Lint passed"
+              echo "lint_status=passed" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "ℹ️  No lint tasks found. Skipping..."
+            echo "lint_status=skipped" >> $GITHUB_OUTPUT
+          fi
+
+      # ============================================
+      # Step 9: Run Unit Tests
+      # ============================================
+      - name: Run Unit Tests
+        id: tests
+        continue-on-error: false
+        run: |
+          if ./gradlew tasks --all | grep -q "test"; then
+            echo "🧪 Running unit tests..."
+            ./gradlew :videoplayer-tv-sdk:testDebugUnitTest
+            echo "✅ All tests passed!"
+            echo "test_status=passed" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️  No test tasks found. Skipping..."
+            echo "test_status=skipped" >> $GITHUB_OUTPUT
+          fi
+
+      # ============================================
+      # Step 10: Build SDK
+      # ============================================
+      - name: Build SDK
+        run: |
+          echo "🔨 Building SDK..."
+          ./gradlew :videoplayer-tv-sdk:assembleRelease
+          ./gradlew :videoplayer-tv-sdk:assembleDebug
+          echo "✅ Build complete!"
+
+      # ============================================
+      # Step 11: Upload AAR as artifact
+      # ============================================
+      - name: Upload AAR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: videoplayer-tv-sdk-aar
+          path: videoplayer-tv-sdk/build/outputs/aar/*.aar
+          retention-days: 30  # Keep artifacts for 30 days
+
+  # ============================================
+  # JOB 3: PUBLISH
+  # ============================================
+  publish:
+    runs-on: ubuntu-latest
+    needs: [check_version_bump, validate, build]
+    if: |
+      success() &&
+      (needs.check_version_bump.outputs.should_run == 'true' ||
+       github.event_name == 'workflow_dispatch' ||
+       startsWith(github.ref, 'refs/tags/'))
+    permissions:
+      contents: write  # Required for creating releases
+      packages: write   # Required for publishing packages
+
+    env:
+      SDK_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_type || 'standard' }}
+
+    steps:
+      # ============================================
+      # Step 1: Checkout
+      # ============================================
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper version detection
+
+      # ============================================
+      # Step 2: Download artifact
+      # ============================================
+      - name: Download AAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: videoplayer-tv-sdk-aar
+          path: videoplayer-tv-sdk/build/outputs/aar/
+
+      # ============================================
+      # Step 3: Setup Java
+      # ============================================
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # ============================================
+      # Step 4: Make gradlew executable
+      # ============================================
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # ============================================
+      # Step 5: Verify AAR before publishing
+      # ============================================
+      - name: Verify AAR
+        id: verify_aar
+        run: |
+          echo "🔍 Verifying AAR file existence and integrity..."
+          # Find the generated AAR file
+          AAR_FILE=$(find videoplayer-tv-sdk/build/outputs/aar -name "*.aar" | head -n 1)
+          
+          if [ -z "$AAR_FILE" ]; then
+            echo "❌ AAR file not found!"
+            exit 1
+          fi
+          
+          echo "✅ AAR found: $AAR_FILE"
+          
+          # Get file size
+          FILE_SIZE=$(stat -c%s "$AAR_FILE" 2>/dev/null || stat -f%z "$AAR_FILE" 2>/dev/null)
+          echo "📊 Size: $FILE_SIZE bytes"
+          
+          if [ "$FILE_SIZE" -lt 10000 ]; then
+            echo "❌ AAR too small ($FILE_SIZE bytes). Build may be corrupted!"
+            exit 1
+          fi
+          
+          # List contents of AAR for verification
+          echo "📋 Contents:"
+          unzip -l "$AAR_FILE" | head -15
+          echo "✅ AAR verification passed!"
+
+      # ============================================
+      # Step 6: Publish to GitHub Packages
+      # ============================================
+      - name: Publish to GitHub Packages
+        id: publish
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          echo "📦 Publishing version $VERSION to GitHub Packages..."
+          
+          # Set version for gradle
+          export VERSION_NAME=$VERSION
+          
+          # Double check version doesn't exist (race condition protection)
+          PACKAGE_URL="https://maven.pkg.github.com/${{ github.repository }}/com/goboss/videoplayer-tv-sdk/$VERSION/videoplayer-tv-sdk-$VERSION.aar"
+          
+          if curl -s -I "$PACKAGE_URL" | grep -q "200 OK"; then
+            echo "❌ ERROR: Version $VERSION already exists on GitHub Packages!"
+            echo "   Package URL: $PACKAGE_URL"
+            echo "   This is likely a race condition. Please retry with a new version."
+            exit 1
+          fi
+          
+          # Publish
+          ./gradlew :videoplayer-tv-sdk:publishReleasePublicationToGitHubPackagesRepository
+          
+          echo "✅ Published successfully!"
+          echo "package_url=https://github.com/${{ github.repository }}/packages" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          VERSION_NAME: ${{ needs.validate.outputs.version }}
+
+      # ============================================
+      # Step 7: Create GitHub Release
+      # ============================================
+      - name: Create GitHub Release
+        if: success() # Create release only if success
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "Video Player TV SDK v${{ needs.validate.outputs.version }}"
+          tag_name: v${{ needs.validate.outputs.version }}
+          prerelease: ${{ needs.validate.outputs.is_production == 'false' }}
+          draft: false
+          generate_release_notes: true
+          body: |
+            ## 🎉 Video Player TV SDK v${{ needs.validate.outputs.version }}
+            
+            ### 📦 Release Information
+            - **Version**: ${{ needs.validate.outputs.version }}
+            - **Type**: ${{ needs.validate.outputs.version_type }}
+            - **Release Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            
+            ### 📥 Installation
+            Add to your `build.gradle`:
+            ```gradle
+            dependencies {
+                implementation 'com.goboss:videoplayer-tv-sdk:${{ needs.validate.outputs.version }}'
+            }
